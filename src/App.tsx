@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useKeyboardState, useLoadingProgress } from './hooks';
 
 // --- Constants & Config ---
 const CANVAS_WIDTH = 800; // Virtual width for logic
@@ -118,11 +119,9 @@ const App: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const requestRef = useRef<number>();
     const [gameState, setGameState] = useState<GameState>('loading');
-    const [loadingProgress, setLoadingProgress] = useState(0);
+    const { loadingProgress, updateProgress } = useLoadingProgress(0);
     const [score, setScore] = useState(0);
-    const [lives, setLives] = useState(3);
     const [level, setLevel] = useState(1);
-    const [highScore, setHighScore] = useState(0); // Optional but nice
 
     // Game Logic Refs (Mutable state outside React render cycle)
     const assetsRef = useRef<{ images: Record<string, HTMLImageElement>; audio: Record<string, HTMLAudioElement> } | null>(null);
@@ -132,32 +131,20 @@ const App: React.FC = () => {
     const scoreRef = useRef(0);
     const livesRef = useRef(3);
     const levelRef = useRef(1);
-    const keysRef = useRef<{ [key: string]: boolean }>({});
+    const keysRef = useKeyboardState();
 
     // Audio state
-    const isMusicPlaying = useRef(false);
 
     // --- Initialization ---
     useEffect(() => {
         // 1. Asset Loading
-        loadAssets((loaded, total) => {
-            setLoadingProgress(Math.floor((loaded / total) * 100));
-        }).then((loadedAssets) => {
+        loadAssets(updateProgress).then((loadedAssets) => {
             assetsRef.current = loadedAssets;
             // Initialize basic positions
             setTimeout(() => setGameState('menu'), 500); // Small delay for UX
         });
 
-        // 2. Input Listeners
-        const handleKeyDown = (e: KeyboardEvent) => { keysRef.current[e.code] = true; };
-        const handleKeyUp = (e: KeyboardEvent) => { keysRef.current[e.code] = false; };
-
-        window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('keyup', handleKeyUp);
-
         return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('keyup', handleKeyUp);
             cancelAnimationFrame(requestRef.current!);
         };
     }, []);
@@ -252,7 +239,6 @@ const App: React.FC = () => {
                 livesRef.current -= 1;
                 if (livesRef.current <= 0) {
                     setGameState('gameover');
-                    setHighScore(h => Math.max(h, scoreRef.current));
                     return; // Stop updating
                 }
             }
@@ -366,7 +352,6 @@ const App: React.FC = () => {
             // Sync final stats to React for the Game Over screen
             setScore(scoreRef.current);
             setLevel(levelRef.current);
-            setLives(0);
         }
 
         return () => cancelAnimationFrame(requestRef.current!);
